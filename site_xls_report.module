@@ -1,0 +1,153 @@
+<?php
+
+libraries_load('PHPExcel');
+
+function site_xls_report_help(){
+
+	global $base_url;
+	
+	$out='<p>'. t('The module permits to donwload a XLS workbook with the description of modules, roles, content-type, taxonomies, etc used in your Drupal installation.').'</p>';
+
+	return $out;
+}
+
+
+/**
+ * Implements hook_menu().
+ *
+ */
+function site_xls_report_menu() {
+
+  $items = array();
+
+  $items['site_xls_report/test'] = array(
+    'title' => 'Site XLS Report TEST',
+    'description' => 'Module test',
+    'page callback' => '_site_xls_report_test',
+    'access arguments' => array('access administration pages'),
+    'weight'=>0,
+    'type' => MENU_NORMAL_ITEM,
+  );
+
+  $items['site_xls_report/stream'] = array(
+    'title' => 'Site XLS Report TEST',
+    'description' => 'Module test',
+    'page callback' => '_site_xls_report_stream',
+    'access arguments' => array('access administration pages'),
+    'weight'=>0,
+    'type' => MENU_NORMAL_ITEM,
+  );
+
+  $items['admin/config/system/site_xls_report'] = array(
+    'title' => 'Site XLS Report',
+    'description' => 'Export the Drupal project structure in a XLS workbook',
+    'page callback' => '_site_xls_report_pre_stream',
+    'access arguments' => array('access administration pages'),
+    'weight'=>0,
+    'type' => MENU_NORMAL_ITEM,
+  );
+
+  return $items;
+}
+
+
+function _site_xls_report_pre_stream(){
+
+	global $base_url;
+
+	$out='';
+
+	$out.="<p><a href=\"".$base_url."\/site_xls_report/stream\">".t('Download report')."</a></p>\n";
+
+	return $out;
+}
+
+function _site_xls_report_mkobject(){
+
+	$o = new stdClass();
+
+	// Module list
+	$ml = module_list();
+	$o->ml_info = array();
+
+	foreach($ml as  $m){
+
+		$path = drupal_get_path('module', $m) . '/' . $m . '.info';
+		$tmp_info = drupal_parse_info_file($path);
+
+		if(isset($tmp_info['project']) && $tmp_info['project']=='drupal') {
+			continue;
+		}
+		else{
+
+			// convert to string the dependencies
+			if(isset($tmp_info['dependencies'])){
+				$tmp_info['dependencies']=implode(", ", $tmp_info['dependencies']);
+			}
+
+			$o->ml_info[] = $tmp_info;
+		}
+		
+	}
+
+
+
+	// Content types
+	$o->cts = node_type_get_types();
+	$o->ct_fields=array();
+	foreach($o->cts as $ct){
+		$o->ct_fields[] = field_info_instances("node", $ct->type);
+	}
+
+	// Roles
+	$o->roles = user_roles();
+
+
+	// Permissions
+	$o->permissions=array();
+
+	foreach($o->roles as $idr=>$r){
+		$p= user_role_permissions(array($idr => $r));
+		$o->permissions[$idr]=$p[$idr];
+	}
+
+	// Vocabularies
+	$o->vocabularies = taxonomy_get_vocabularies();
+
+	// Taxonomies
+	$o->tax = array();
+	foreach($o->vocabularies as $vid=>$v){
+		$o->tax[] = taxonomy_get_tree($vid);
+	}
+
+	return $o;
+}
+
+
+/**
+ * Test function
+ */
+function _site_xls_report_test(){
+
+	$o = _site_xls_report_mkobject();
+
+	if(function_exists('dsm')){
+		dsm($o);
+	}
+
+	return '';
+}
+
+
+function _site_xls_report_stream(){
+
+	$o = _site_xls_report_mkobject();
+
+	$XLS = new Site_XLS_Report_Excel($o);
+
+	$site_name = variable_get('site_name', "test");
+
+	$site_name = preg_replace("/[^\w]+/","_",$site_name);
+
+	$XLS->stream($site_name."-".date("Ymd"));
+}

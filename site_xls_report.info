@@ -1,0 +1,8 @@
+name = Site XLS report
+description = Describe the Drupal project in a XLS file
+core = 7.x
+version = "7.x.0.1"
+project = "site_xls_report"
+dependencies[]=phpexcel
+files[]=classes/class.site_xls_report_excel.php
+config= admin/config/system/site_xls_report
